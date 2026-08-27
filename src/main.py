@@ -1,0 +1,3 @@
+from bug_submission.bug_submission import bug_submission_page
+
+bug_submission_page()

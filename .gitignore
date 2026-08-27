@@ -1,0 +1,14 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pkl
+*.zip
+data/processed/
+data/proceed/
+data/raw/*.csv
+.env
+.DS_Store
+msr2013-bug_dataset-master/
+login_bug.txt
+text_bug.txt
