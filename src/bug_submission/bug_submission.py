@@ -26,13 +26,20 @@ def bug_submission_page():
 
     if st.button("Submit Bug"):
 
+        # -------------------------------------------------
+        # Validate Input
+        # -------------------------------------------------
+
         if title == "" or description == "":
             st.error("Bug title and description are required.")
             return
 
         os.makedirs("data/processed", exist_ok=True)
 
-        # Read uploaded file
+        # -------------------------------------------------
+        # Read Uploaded File
+        # -------------------------------------------------
+
         file_content = ""
 
         if uploaded_file is not None:
@@ -50,7 +57,10 @@ def bug_submission_page():
                     errors="ignore"
                 )
 
-        # Create bug
+        # -------------------------------------------------
+        # Create Bug
+        # -------------------------------------------------
+
         bug = {
             "Title": title,
             "Description": description,
@@ -58,7 +68,10 @@ def bug_submission_page():
             "Error Log": error_log
         }
 
-        # Save bug
+        # -------------------------------------------------
+        # Save Bug
+        # -------------------------------------------------
+
         bug_data = {
             "Bug ID": "BUG-" + datetime.now().strftime("%Y%m%d%H%M%S"),
             "Title": title,
@@ -92,46 +105,136 @@ def bug_submission_page():
 
         st.success("✅ Bug submitted successfully!")
 
-        # Run diagnosis
+        # -------------------------------------------------
+        # Run Diagnosis
+        # -------------------------------------------------
+
         st.subheader("🔍 Bug Diagnosis")
 
         with st.spinner("Analyzing bug..."):
 
             result = diagnose_bug(bug)
 
-        # Triage
+        # =================================================
+        # 1. TRIAGE AGENT
+        # =================================================
+
         st.write("### 1️⃣ Triage")
 
-        st.write(
-            "Category:",
-            result["Triage"]["category"]
-        )
+        triage = result["Triage"]
 
         st.write(
             "Severity:",
-            result["Triage"]["severity"]
+            triage["severity"]
         )
 
-        # Log analysis
+        st.write(
+            "Priority:",
+            triage["priority"]
+        )
+
+        st.write(
+            "Affected Component:",
+            triage["component"]
+        )
+
+        st.write(
+            "Confidence:",
+            triage["confidence"]
+        )
+
+        st.write(
+            "Reasoning:",
+            triage["reasoning"]
+        )
+
+        # =================================================
+        # 2. LOG ANALYSIS AGENT
+        # =================================================
+
         st.write("### 2️⃣ Log Analysis")
 
-        for finding in result["Log Findings"]:
+        log_result = result["Log Findings"]
 
-            st.write("•", finding)
+        st.write(
+            "Exception Type:",
+            log_result["exception_type"]
+        )
 
-        # Root cause
+        st.write(
+            "Error Message:",
+            log_result["error_message"]
+        )
+
+        # Failure Point
+
+        failure_point = log_result["failure_point"]
+
+        st.write(
+            "File:",
+            failure_point["file"]
+        )
+
+        st.write(
+            "Class:",
+            failure_point["class"]
+        )
+
+        st.write(
+            "Method:",
+            failure_point["method"]
+        )
+
+        st.write(
+            "Line:",
+            failure_point["line"]
+        )
+
+        # Code Path
+
+        if log_result["code_path"]:
+
+            code_path = " → ".join(
+                log_result["code_path"]
+            )
+
+        else:
+
+            code_path = "Not Available"
+
+        st.write(
+            "Code Path:",
+            code_path
+        )
+
+        st.write(
+            "Confidence:",
+            log_result["confidence"]
+        )
+
+        # =================================================
+        # 3. ROOT CAUSE
+        # =================================================
+
         st.write("### 3️⃣ Root Cause")
 
-        st.info(result["Root Cause"])
+        st.info(
+            result["Root Cause"]
+        )
 
-        # Duplicate detection
+        # =================================================
+        # 4. DUPLICATE DETECTION
+        # =================================================
+
         st.write("### 4️⃣ Similar Historical Bugs")
 
         duplicate_result = result["Duplicate Detection"]
 
         if duplicate_result["duplicate_found"]:
 
-            st.warning("Similar historical bugs found.")
+            st.warning(
+                "Similar historical bugs found."
+            )
 
             for bug_result in duplicate_result["similar_bugs"]:
 
@@ -146,9 +249,14 @@ def bug_submission_page():
 
         else:
 
-            st.success("No similar historical bugs found.")
+            st.success(
+                "No similar historical bugs found."
+            )
 
-        # Recommendation
+        # =================================================
+        # 5. RECOMMENDED FIX
+        # =================================================
+
         st.write("### 5️⃣ Recommended Fix")
 
         st.success(
