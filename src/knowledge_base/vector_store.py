@@ -23,9 +23,13 @@ def create_vector_store():
         data["embedding"].tolist()
     ).astype("float32")
 
+    # Normalize embeddings for cosine similarity
+    faiss.normalize_L2(embeddings)
+
     dimension = embeddings.shape[1]
 
-    index = faiss.IndexFlatL2(dimension)
+    # Inner Product on normalized vectors = Cosine Similarity
+    index = faiss.IndexFlatIP(dimension)
 
     index.add(embeddings)
 
@@ -47,7 +51,7 @@ def create_vector_store():
     print("Total vectors:", index.ntotal)
 
 
-def search_similar_bugs(query, top_k=3):
+def search_similar_bugs(query, top_k=5):
 
     model = SentenceTransformer(MODEL_NAME)
 
@@ -59,6 +63,9 @@ def search_similar_bugs(query, top_k=3):
         query_embedding
     ).astype("float32")
 
+    # Normalize query for cosine similarity
+    faiss.normalize_L2(query_embedding)
+
     index = faiss.read_index(
         INDEX_FILE
     )
@@ -67,7 +74,7 @@ def search_similar_bugs(query, top_k=3):
         METADATA_FILE
     )
 
-    distances, indices = index.search(
+    similarities, indices = index.search(
         query_embedding,
         top_k
     )
@@ -78,14 +85,38 @@ def search_similar_bugs(query, top_k=3):
 
         index_number = indices[0][i]
 
+        if index_number < 0:
+            continue
+
         if index_number < len(data):
 
+            similarity = float(
+                similarities[0][i]
+            )
+
+            # Keep similarity between 0 and 1
+            similarity = max(
+                0.0,
+                min(1.0, similarity)
+            )
+
             result = {
-                "bug_id": data.iloc[index_number]["bug_id"],
-                "source": data.iloc[index_number]["source"],
-                "chunk_type": data.iloc[index_number]["chunk_type"],
-                "text": data.iloc[index_number]["text"],
-                "distance": float(distances[0][i])
+
+                "bug_id":
+                    data.iloc[index_number]["bug_id"],
+
+                "source":
+                    data.iloc[index_number]["source"],
+
+                "chunk_type":
+                    data.iloc[index_number]["chunk_type"],
+
+                "text":
+                    data.iloc[index_number]["text"],
+
+                "similarity":
+                    round(similarity, 4)
+
             }
 
             results.append(result)
@@ -97,7 +128,10 @@ if __name__ == "__main__":
 
     create_vector_store()
 
-    query = "Application crashes because of NullPointerException"
+    query = (
+        "Application crashes because of "
+        "NullPointerException during login"
+    )
 
     results = search_similar_bugs(
         query,
@@ -108,9 +142,29 @@ if __name__ == "__main__":
 
     for result in results:
 
-        print("Bug ID:", result["bug_id"])
-        print("Source:", result["source"])
-        print("Type:", result["chunk_type"])
-        print("Text:", result["text"])
-        print("Distance:", result["distance"])
+        print(
+            "Bug ID:",
+            result["bug_id"]
+        )
+
+        print(
+            "Source:",
+            result["source"]
+        )
+
+        print(
+            "Type:",
+            result["chunk_type"]
+        )
+
+        print(
+            "Text:",
+            result["text"]
+        )
+
+        print(
+            "Similarity:",
+            result["similarity"]
+        )
+
         print("-" * 50)

@@ -12,42 +12,28 @@ def analyze_logs(bug):
     # Default values
     exception_type = "Not Available"
     error_message = "Not Available"
-
     file_name = "Not Available"
     class_name = "Not Available"
     method_name = "Not Available"
     line_number = "Not Available"
-
     code_path = []
-
     confidence = 0.50
 
-    # -------------------------------------------------
-    # 1. Identify Exception Type
-    # -------------------------------------------------
+    # =================================================
+    # 1. IDENTIFY EXCEPTION TYPE
+    # =================================================
 
-    exception_patterns = [
-        r'\b([A-Za-z_][A-Za-z0-9_]*(?:Exception|Error))\b'
-    ]
+    exception_pattern = r"\b([A-Za-z_][A-Za-z0-9_]*(?:Exception|Error))\b"
 
-    for pattern in exception_patterns:
+    match = re.search(exception_pattern, logs)
 
-        match = re.search(
-            pattern,
-            logs
-        )
+    if match:
+        exception_type = match.group(1)
+        confidence += 0.10
 
-        if match:
-
-            exception_type = match.group(1)
-
-            confidence += 0.10
-
-            break
-
-    # -------------------------------------------------
-    # 2. Extract Error Message
-    # -------------------------------------------------
+    # =================================================
+    # 2. EXTRACT ERROR MESSAGE
+    # =================================================
 
     if exception_type != "Not Available":
 
@@ -55,34 +41,86 @@ def analyze_logs(bug):
 
         for line in lines:
 
-            if exception_type in line:
+            line = line.strip()
 
-                message = line.strip()
+            if exception_type not in line:
+                continue
 
-                if ":" in message:
+            # -------------------------------------------------
+            # Case 1:
+            # NullPointerException: user object is null
+            # -------------------------------------------------
 
-                    error_message = message.split(
-                        ":",
-                        1
-                    )[1].strip()
+            if ":" in line:
 
-                else:
+                # Check whether this is a Java file reference
+                # such as UserService.java:45
+                java_reference = re.search(
+                    r"\b[\w.-]+\.java:\d+\b",
+                    line
+                )
 
-                    error_message = message
+                if java_reference and line.startswith(exception_type):
 
-                confidence += 0.10
+                    # Example:
+                    # NullPointerException at UserService.java:45
+                    if re.search(
+                        r"\bat\s+[\w.-]+\.java:\d+\b",
+                        line
+                    ):
+                        pass
 
-                break
+                    else:
+                        message = line.split(":", 1)[1].strip()
 
-    # -------------------------------------------------
-    # 3. Handle Plain Error Logs
-    # -------------------------------------------------
+                        if message:
+                            error_message = message
 
-    if error_message == "Not Available" and error_log:
+            # -------------------------------------------------
+            # Case 2:
+            # NullPointerException at UserService.java:45
+            # -------------------------------------------------
+
+            elif re.search(
+                r"\bat\s+[\w.-]+\.java:\d+\b",
+                line
+            ):
+
+                # This is only a failure-point reference.
+                # Do NOT use 45 as the error message.
+                pass
+
+            # -------------------------------------------------
+            # Case 3:
+            # NullPointerException user object is null
+            # -------------------------------------------------
+
+            else:
+
+                cleaned_message = re.sub(
+                    r"^" + re.escape(exception_type),
+                    "",
+                    line
+                ).strip()
+
+                if cleaned_message:
+                    error_message = cleaned_message
+
+            confidence += 0.10
+            break
+
+    # =================================================
+    # 3. HANDLE PLAIN ERROR LOGS
+    # =================================================
+
+    if error_message == "Not Available" and error_log.strip():
 
         for line in error_log.splitlines():
 
             line = line.strip()
+
+            if not line:
+                continue
 
             if (
                 "ERROR" in line.upper()
@@ -91,31 +129,51 @@ def analyze_logs(bug):
             ):
 
                 if "-" in line:
-
-                    error_message = line.split(
-                        "-",
-                        1
-                    )[1].strip()
-
+                    error_message = line.split("-", 1)[1].strip()
                 else:
-
                     error_message = line
 
                 confidence += 0.05
-
                 break
 
-    # -------------------------------------------------
-    # 4. Extract Java Failure Point
-    # -------------------------------------------------
+        # If there is no ERROR/FAIL keyword,
+        # use the first meaningful error-log line.
+        if error_message == "Not Available":
+
+            error_message = error_log.strip().splitlines()[0].strip()
+            confidence += 0.05
+
+    # =================================================
+    # 4. EXTRACT JAVA FAILURE POINT
+    # =================================================
+
+    # Supports:
+    # at UserService.java:45
+    # at com.example.UserService.login(UserService.java:45)
 
     java_pattern = (
-        r'at\s+([\w.]+)\.([\w$]+)'
-        r'\(([\w.-]+):(\d+)\)'
+        r"(?:at\s+)?"
+        r"(?:(?P<class_path>[\w.$]+)\.)?"
+        r"(?P<method>[\w$]+)"
+        r"\("
+        r"(?P<file>[\w.-]+\.java):"
+        r"(?P<line>\d+)"
+        r"\)"
     )
 
     java_matches = re.findall(
         java_pattern,
+        logs
+    )
+
+    # Also support:
+    # NullPointerException at UserService.java:45
+    short_java_pattern = (
+        r"(?P<file>[\w.-]+\.java):(?P<line>\d+)"
+    )
+
+    short_java_matches = re.findall(
+        short_java_pattern,
         logs
     )
 
@@ -124,38 +182,67 @@ def analyze_logs(bug):
         first_match = java_matches[0]
 
         full_class = first_match[0]
-
         method_name = first_match[1]
-
         file_name = first_match[2]
-
         line_number = first_match[3]
 
-        class_name = full_class.split(
-            "."
-        )[-1]
+        if full_class:
+
+            class_name = full_class.split(".")[-1]
+
+        else:
+
+            class_name = file_name.replace(
+                ".java",
+                ""
+            )
 
         confidence += 0.10
 
         # Create code path
-
         for match in java_matches:
 
             full_class = match[0]
-
             method = match[1]
 
-            class_name_path = full_class.split(
-                "."
-            )[-1]
+            if full_class:
+
+                class_name_path = full_class.split(".")[-1]
+
+            else:
+
+                class_name_path = match[2].replace(
+                    ".java",
+                    ""
+                )
 
             code_path.append(
                 class_name_path + "." + method
             )
 
-    # -------------------------------------------------
-    # 5. Python Stack Trace Support
-    # -------------------------------------------------
+    elif short_java_matches:
+
+        first_match = short_java_matches[0]
+
+        file_name = first_match[0]
+        line_number = first_match[1]
+
+        class_name = file_name.replace(
+            ".java",
+            ""
+        )
+
+        method_name = "Not Available"
+
+        confidence += 0.10
+
+        code_path.append(
+            class_name
+        )
+
+    # =================================================
+    # 5. PYTHON STACK TRACE SUPPORT
+    # =================================================
 
     python_pattern = (
         r'File\s+"([^"]+)",\s+line\s+(\d+)'
@@ -172,7 +259,6 @@ def analyze_logs(bug):
     ):
 
         file_name = python_matches[0][0]
-
         line_number = python_matches[0][1]
 
         confidence += 0.10
@@ -183,52 +269,57 @@ def analyze_logs(bug):
                 match[0] + ":" + match[1]
             )
 
-    # -------------------------------------------------
-    # 6. Detect Available Logs
-    # -------------------------------------------------
+    # =================================================
+    # 6. DETECT AVAILABLE LOGS
+    # =================================================
 
     if stack_trace:
-
         confidence += 0.05
 
     if error_log:
-
         confidence += 0.05
 
     # Maximum confidence = 0.95
-
     confidence = min(
         confidence,
         0.95
     )
 
-    # -------------------------------------------------
-    # 7. Structured Result
-    # -------------------------------------------------
+    # =================================================
+    # 7. STRUCTURED RESULT
+    # =================================================
 
     result = {
 
-        "exception_type": exception_type,
+        "exception_type":
+            exception_type,
 
-        "error_message": error_message,
+        "error_message":
+            error_message,
 
         "failure_point": {
 
-            "file": file_name,
+            "file":
+                file_name,
 
-            "class": class_name,
+            "class":
+                class_name,
 
-            "method": method_name,
+            "method":
+                method_name,
 
-            "line": line_number
+            "line":
+                line_number
         },
 
-        "code_path": code_path,
+        "code_path":
+            code_path,
 
-        "confidence": round(
-            confidence,
-            2
-        )
+        "confidence":
+            round(
+                confidence,
+                2
+            )
     }
 
     return result

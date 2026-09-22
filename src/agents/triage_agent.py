@@ -17,7 +17,9 @@ class TriageAgent:
 
         if (
             "crash" in description
+            or "crashes" in description
             or "system down" in description
+            or "application down" in description
         ):
             severity = "Critical"
             priority = "High"
@@ -106,10 +108,12 @@ def triage_bug(bug):
     # Safely get Description
     if not isinstance(bug, dict):
         description = ""
+
     else:
+        # Support both field names
         description = bug.get(
-            "Description",
-            ""
+            "Bug Description",
+            bug.get("Description", "")
         )
 
     return agent.analyze(

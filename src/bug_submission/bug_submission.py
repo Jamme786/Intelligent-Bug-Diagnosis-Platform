@@ -11,6 +11,10 @@ def bug_submission_page():
     st.title("🐞 Intelligent Bug Diagnosis Platform")
     st.subheader("Bug Submission")
 
+    # =====================================================
+    # BUG SUBMISSION FORM
+    # =====================================================
+
     title = st.text_input("Bug Title")
 
     description = st.text_area("Bug Description")
@@ -26,9 +30,9 @@ def bug_submission_page():
 
     if st.button("Submit Bug"):
 
-        # -------------------------------------------------
-        # Validate Input
-        # -------------------------------------------------
+        # =================================================
+        # VALIDATE INPUT
+        # =================================================
 
         if title == "" or description == "":
             st.error("Bug title and description are required.")
@@ -36,9 +40,9 @@ def bug_submission_page():
 
         os.makedirs("data/processed", exist_ok=True)
 
-        # -------------------------------------------------
-        # Read Uploaded File
-        # -------------------------------------------------
+        # =================================================
+        # READ UPLOADED FILE
+        # =================================================
 
         file_content = ""
 
@@ -57,9 +61,9 @@ def bug_submission_page():
                     errors="ignore"
                 )
 
-        # -------------------------------------------------
-        # Create Bug
-        # -------------------------------------------------
+        # =================================================
+        # CREATE BUG OBJECT
+        # =================================================
 
         bug = {
             "Title": title,
@@ -68,19 +72,29 @@ def bug_submission_page():
             "Error Log": error_log
         }
 
-        # -------------------------------------------------
-        # Save Bug
-        # -------------------------------------------------
+        # =================================================
+        # SAVE SUBMITTED BUG
+        # =================================================
+
+        bug_id = "BUG-" + datetime.now().strftime(
+            "%Y%m%d%H%M%S"
+        )
 
         bug_data = {
-            "Bug ID": "BUG-" + datetime.now().strftime("%Y%m%d%H%M%S"),
+            "Bug ID": bug_id,
             "Title": title,
             "Description": description,
             "Stack Trace": stack_trace,
             "Error Log": error_log,
             "Uploaded File Content": file_content,
-            "File Name": uploaded_file.name if uploaded_file else "",
-            "Submission Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            "File Name":
+                uploaded_file.name
+                if uploaded_file
+                else "",
+            "Submission Date":
+                datetime.now().strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
         }
 
         df = pd.DataFrame([bug_data])
@@ -105,160 +119,657 @@ def bug_submission_page():
 
         st.success("✅ Bug submitted successfully!")
 
-        # -------------------------------------------------
-        # Run Diagnosis
-        # -------------------------------------------------
+        # =================================================
+        # ORIGINAL SUBMISSION
+        # =================================================
 
-        st.subheader("🔍 Bug Diagnosis")
+        st.subheader("📄 Submitted Bug")
 
-        with st.spinner("Analyzing bug..."):
+        with st.expander(
+            "View Original Bug Report",
+            expanded=True
+        ):
+
+            st.write("**Bug ID:**", bug_id)
+
+            st.write("**Title:**", title)
+
+            st.write(
+                "**Description:**",
+                description
+            )
+
+            st.write(
+                "**Stack Trace:**",
+                stack_trace
+                if stack_trace
+                else "Not provided"
+            )
+
+            st.write(
+                "**Error Log:**",
+                error_log
+                if error_log
+                else "Not provided"
+            )
+
+            if uploaded_file:
+
+                st.write(
+                    "**Uploaded File:**",
+                    uploaded_file.name
+                )
+
+        # =================================================
+        # RUN COMPLETE DIAGNOSIS
+        # =================================================
+
+        st.subheader("🔍 Complete Bug Diagnosis")
+
+        with st.spinner(
+            "Running Triage, Log Analysis, Root Cause, "
+            "Duplicate Detection and Remediation..."
+        ):
 
             result = diagnose_bug(bug)
 
         # =================================================
-        # 1. TRIAGE AGENT
+        # 1. TRIAGE
         # =================================================
 
-        st.write("### 1️⃣ Triage")
+        st.markdown("---")
 
-        triage = result["Triage"]
+        st.write("## 1️⃣ Triage Analysis")
 
-        st.write(
-            "Severity:",
-            triage["severity"]
+        triage = result.get(
+            "Triage",
+            {}
         )
 
-        st.write(
-            "Priority:",
-            triage["priority"]
-        )
+        col1, col2, col3 = st.columns(3)
 
-        st.write(
-            "Affected Component:",
-            triage["component"]
-        )
+        with col1:
 
-        st.write(
-            "Confidence:",
-            triage["confidence"]
-        )
-
-        st.write(
-            "Reasoning:",
-            triage["reasoning"]
-        )
-
-        # =================================================
-        # 2. LOG ANALYSIS AGENT
-        # =================================================
-
-        st.write("### 2️⃣ Log Analysis")
-
-        log_result = result["Log Findings"]
-
-        st.write(
-            "Exception Type:",
-            log_result["exception_type"]
-        )
-
-        st.write(
-            "Error Message:",
-            log_result["error_message"]
-        )
-
-        # Failure Point
-
-        failure_point = log_result["failure_point"]
-
-        st.write(
-            "File:",
-            failure_point["file"]
-        )
-
-        st.write(
-            "Class:",
-            failure_point["class"]
-        )
-
-        st.write(
-            "Method:",
-            failure_point["method"]
-        )
-
-        st.write(
-            "Line:",
-            failure_point["line"]
-        )
-
-        # Code Path
-
-        if log_result["code_path"]:
-
-            code_path = " → ".join(
-                log_result["code_path"]
+            st.metric(
+                "Severity",
+                triage.get(
+                    "severity",
+                    "Unknown"
+                )
             )
 
-        else:
+        with col2:
 
-            code_path = "Not Available"
+            st.metric(
+                "Priority",
+                triage.get(
+                    "priority",
+                    "Unknown"
+                )
+            )
+
+        with col3:
+
+            st.metric(
+                "Component",
+                triage.get(
+                    "component",
+                    "Unknown"
+                )
+            )
 
         st.write(
-            "Code Path:",
-            code_path
+            "**Confidence:**",
+            triage.get(
+                "confidence",
+                0.0
+            )
         )
 
-        st.write(
-            "Confidence:",
-            log_result["confidence"]
+        with st.expander(
+            "Triage Reasoning",
+            expanded=True
+        ):
+
+            st.write(
+                triage.get(
+                    "reasoning",
+                    "No reasoning available."
+                )
+            )
+
+        # =================================================
+        # 2. LOG ANALYSIS
+        # =================================================
+
+        st.markdown("---")
+
+        st.write("## 2️⃣ Log Analysis")
+
+        log_result = result.get(
+            "Log Findings",
+            {}
         )
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+
+            st.write(
+                "**Exception Type:**",
+                log_result.get(
+                    "exception_type",
+                    "Not Available"
+                )
+            )
+
+        with col2:
+
+            st.write(
+                "**Confidence:**",
+                log_result.get(
+                    "confidence",
+                    0.0
+                )
+            )
+
+        st.write(
+            "**Error Message:**",
+            log_result.get(
+                "error_message",
+                "Not Available"
+            )
+        )
+
+        failure_point = log_result.get(
+            "failure_point",
+            {}
+        )
+
+        with st.expander(
+            "Failure Point",
+            expanded=True
+        ):
+
+            st.write(
+                "**File:**",
+                failure_point.get(
+                    "file",
+                    "Not Available"
+                )
+            )
+
+            st.write(
+                "**Class:**",
+                failure_point.get(
+                    "class",
+                    "Not Available"
+                )
+            )
+
+            st.write(
+                "**Method:**",
+                failure_point.get(
+                    "method",
+                    "Not Available"
+                )
+            )
+
+            st.write(
+                "**Line:**",
+                failure_point.get(
+                    "line",
+                    "Not Available"
+                )
+            )
+
+        code_path = log_result.get(
+            "code_path",
+            []
+        )
+
+        with st.expander("Code Path"):
+
+            if code_path:
+
+                st.write(
+                    " → ".join(code_path)
+                )
+
+            else:
+
+                st.write("Not Available")
 
         # =================================================
         # 3. ROOT CAUSE
         # =================================================
 
-        st.write("### 3️⃣ Root Cause")
+        st.markdown("---")
+
+        st.write("## 3️⃣ Root Cause Analysis")
+
+        root_cause = result.get(
+            "Root Cause",
+            {}
+        )
+
+        root_cause_text = root_cause.get(
+            "root_cause",
+            "Root cause analysis unavailable."
+        )
+
+        confidence = root_cause.get(
+            "confidence",
+            0.0
+        )
+
+        evidence_available = root_cause.get(
+            "evidence_available",
+            False
+        )
 
         st.info(
-            result["Root Cause"]
+            "🎯 " + root_cause_text
         )
+
+        st.write(
+            "**Confidence:**",
+            confidence
+        )
+
+        st.write(
+            "**Failure Point:**",
+            root_cause.get(
+                "failure_point",
+                "Not Available"
+            )
+        )
+
+        with st.expander(
+            "Reasoning",
+            expanded=True
+        ):
+
+            st.write(
+                root_cause.get(
+                    "reasoning",
+                    "No reasoning available."
+                )
+            )
+
+        # Evidence status
+
+        if evidence_available:
+
+            st.success(
+                "📚 Supporting historical evidence is available."
+            )
+
+        else:
+
+            st.warning(
+                "⚠️ Insufficient historical evidence."
+            )
+
+        # Supporting evidence
+
+        supporting_evidence = root_cause.get(
+            "supporting_evidence",
+            []
+        )
+
+        if supporting_evidence:
+
+            with st.expander(
+                "Supporting Historical Evidence"
+            ):
+
+                for evidence in supporting_evidence:
+
+                    st.write(
+                        "**Bug ID:**",
+                        evidence.get(
+                            "bug_id",
+                            "Unknown"
+                        )
+                    )
+
+                    st.write(
+                        "**Similarity:**",
+                        evidence.get(
+                            "similarity_percentage",
+                            evidence.get(
+                                "similarity_score",
+                                "N/A"
+                            )
+                        )
+                    )
+
+                    st.write(
+                        "**Historical Text:**",
+                        evidence.get(
+                            "historical_text",
+                            "Not Available"
+                        )
+                    )
+
+                    st.write(
+                        "**Source:**",
+                        evidence.get(
+                            "source",
+                            "Unknown"
+                        )
+                    )
+
+                    st.write(
+                        "**Evidence Explanation:**",
+                        evidence.get(
+                            "explanation",
+                            "Not Available"
+                        )
+                    )
+
+                    st.markdown("---")
 
         # =================================================
         # 4. DUPLICATE DETECTION
         # =================================================
 
-        st.write("### 4️⃣ Similar Historical Bugs")
+        st.markdown("---")
 
-        duplicate_result = result["Duplicate Detection"]
+        st.write("## 4️⃣ Duplicate Detection")
 
-        if duplicate_result["duplicate_found"]:
+        duplicate_result = result.get(
+            "Duplicate Detection",
+            {}
+        )
+
+        duplicate_status = duplicate_result.get(
+            "duplicate_status",
+            "New/Unmatched"
+        )
+
+        duplicate_found = duplicate_result.get(
+            "duplicate_found",
+            False
+        )
+
+        match_count = duplicate_result.get(
+            "match_count",
+            0
+        )
+
+        if duplicate_found:
 
             st.warning(
-                "Similar historical bugs found."
+                "🔄 Similar historical bugs detected."
             )
-
-            for bug_result in duplicate_result["similar_bugs"]:
-
-                st.write(
-                    f"**{bug_result['bug_id']}** "
-                    f"({bug_result['source']})"
-                )
-
-                st.write(
-                    bug_result["text"]
-                )
 
         else:
 
             st.success(
-                "No similar historical bugs found."
+                "🆕 No likely duplicate found."
             )
 
+        st.write(
+            "**Detection Status:**",
+            duplicate_status
+        )
+
+        st.write(
+            "**Matches Analyzed:**",
+            match_count
+        )
+
+        matching_bugs = duplicate_result.get(
+            "matching_bugs",
+            []
+        )
+
+        if matching_bugs:
+
+            with st.expander(
+                "View Historical Bug Matches",
+                expanded=True
+            ):
+
+                for index, match in enumerate(
+                    matching_bugs,
+                    start=1
+                ):
+
+                    st.write(
+                        f"### Match {index}"
+                    )
+
+                    st.write(
+                        "**Bug ID:**",
+                        match.get(
+                            "bug_id",
+                            "Unknown"
+                        )
+                    )
+
+                    st.write(
+                        "**Source:**",
+                        match.get(
+                            "source",
+                            "Unknown"
+                        )
+                    )
+
+                    st.write(
+                        "**Similarity:**",
+                        str(
+                            match.get(
+                                "similarity_percentage",
+                                "N/A"
+                            )
+                        ) + "%"
+                    )
+
+                    st.write(
+                        "**Classification:**",
+                        match.get(
+                            "status",
+                            "Unknown"
+                        )
+                    )
+
+                    st.write(
+                        "**Historical Record:**",
+                        match.get(
+                            "historical_text",
+                            "Not Available"
+                        )
+                    )
+
+                    st.write(
+                        "**Explanation:**",
+                        match.get(
+                            "explanation",
+                            "Not Available"
+                        )
+                    )
+
+                    st.write(
+                        "**Resolution:**",
+                        match.get(
+                            "resolution",
+                            "Not Available"
+                        )
+                    )
+
+                    st.markdown("---")
+
         # =================================================
-        # 5. RECOMMENDED FIX
+        # 5. REMEDIATION
         # =================================================
 
-        st.write("### 5️⃣ Recommended Fix")
+        st.markdown("---")
+
+        st.write("## 5️⃣ Remediation Recommendation")
+
+        remediation = result.get(
+            "Recommended Fix",
+            {}
+        )
+
+        recommended_fix = remediation.get(
+            "recommended_fix",
+            "No recommendation available."
+        )
+
+        implementation_guidance = remediation.get(
+            "implementation_guidance",
+            "No implementation guidance available."
+        )
+
+        remediation_confidence = remediation.get(
+            "confidence",
+            0.0
+        )
+
+        evidence_type = remediation.get(
+            "evidence_type",
+            "Unknown"
+        )
+
+        if evidence_type == "Insufficient Evidence":
+
+            st.warning(
+                "⚠️ Insufficient Evidence"
+            )
+
+        else:
+
+            st.success(
+                "🛠️ Recommended Fix"
+            )
+
+        st.info(
+            recommended_fix
+        )
+
+        st.write(
+            "**Confidence:**",
+            remediation_confidence
+        )
+
+        st.write(
+            "**Evidence Type:**",
+            evidence_type
+        )
+
+        with st.expander(
+            "Implementation Guidance",
+            expanded=True
+        ):
+
+            st.write(
+                implementation_guidance
+            )
+
+        historical_evidence = remediation.get(
+            "historical_evidence",
+            []
+        )
+
+        if historical_evidence:
+
+            with st.expander(
+                "Historical Fix References"
+            ):
+
+                for evidence in historical_evidence:
+
+                    st.write(
+                        "**Bug ID:**",
+                        evidence.get(
+                            "bug_id",
+                            "Unknown"
+                        )
+                    )
+
+                    st.write(
+                        "**Similarity:**",
+                        evidence.get(
+                            "similarity_percentage",
+                            evidence.get(
+                                "similarity_score",
+                                "N/A"
+                            )
+                        )
+                    )
+
+                    st.write(
+                        "**Historical Evidence:**",
+                        evidence.get(
+                            "historical_text",
+                            "Not Available"
+                        )
+                    )
+
+                    st.write(
+                        "**Source:**",
+                        evidence.get(
+                            "source",
+                            "Unknown"
+                        )
+                    )
+
+                    st.markdown("---")
+
+        # =================================================
+        # FINAL SUMMARY
+        # =================================================
+
+        st.markdown("---")
+
+        st.write("## 📊 Diagnosis Summary")
+
+        summary_data = {
+
+            "Severity":
+                triage.get(
+                    "severity",
+                    "Unknown"
+                ),
+
+            "Priority":
+                triage.get(
+                    "priority",
+                    "Unknown"
+                ),
+
+            "Component":
+                triage.get(
+                    "component",
+                    "Unknown"
+                ),
+
+            "Root Cause Confidence":
+                root_cause.get(
+                    "confidence",
+                    0.0
+                ),
+
+            "Duplicate Status":
+                duplicate_status,
+
+            "Remediation Confidence":
+                remediation_confidence
+        }
+
+        summary_df = pd.DataFrame(
+            [summary_data]
+        )
+
+        st.dataframe(
+            summary_df,
+            use_container_width=True
+        )
 
         st.success(
-            result["Recommended Fix"]
+            "✅ Complete structured bug diagnosis report generated."
         )

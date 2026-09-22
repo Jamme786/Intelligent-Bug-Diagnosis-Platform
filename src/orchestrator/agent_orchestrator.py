@@ -7,44 +7,38 @@ from agents.remediation_agent import recommend_fix
 
 def diagnose_bug(bug):
 
-    # -------------------------------------------------
-    # Validate Bug Input
-    # -------------------------------------------------
-
+    # Validate input
     if not bug or not isinstance(bug, dict):
-
         return {
-            "Error": "Invalid bug input. Please provide a valid bug report."
+            "Error":
+                "Invalid bug input. Please provide a valid bug report."
         }
 
-    # -------------------------------------------------
-    # Step 1: Triage Agent
-    # -------------------------------------------------
+    # ---------------------------------------------------------
+    # 1. TRIAGE AGENT
+    # ---------------------------------------------------------
 
     try:
-
         triage_result = triage_bug(bug)
 
-    except Exception as e:
-
+    except Exception:
         triage_result = {
             "severity": "Unknown",
             "priority": "Unknown",
             "component": "Unknown",
             "confidence": 0.0,
-            "reasoning": "Triage Agent failed to analyze the bug."
+            "reasoning":
+                "Triage Agent failed to analyze the bug."
         }
 
-    # -------------------------------------------------
-    # Step 2: Log Analysis Agent
-    # -------------------------------------------------
+    # ---------------------------------------------------------
+    # 2. LOG ANALYSIS AGENT
+    # ---------------------------------------------------------
 
     try:
-
         log_findings = analyze_logs(bug)
 
-    except Exception as e:
-
+    except Exception:
         log_findings = {
             "exception_type": "Not Available",
             "error_message": "Log analysis failed.",
@@ -58,71 +52,112 @@ def diagnose_bug(bug):
             "confidence": 0.0
         }
 
-    # -------------------------------------------------
-    # Step 3: Root Cause Agent
-    # -------------------------------------------------
+    # ---------------------------------------------------------
+    # 3. DUPLICATE DETECTION AGENT
+    # ---------------------------------------------------------
 
     try:
+        duplicate_result = detect_duplicates(bug)
+
+    except Exception:
+        duplicate_result = {
+            "duplicate_status": "New/Unmatched",
+            "duplicate_found": False,
+            "match_count": 0,
+            "matching_bugs": []
+        }
+
+    # ---------------------------------------------------------
+    # 4. ROOT CAUSE AGENT
+    # ---------------------------------------------------------
+
+    try:
+
+        historical_evidence = duplicate_result.get(
+            "matching_bugs",
+            []
+        )
 
         root_cause = find_root_cause(
             bug,
-            log_findings
+            log_findings,
+            historical_evidence
         )
 
-    except Exception as e:
+    except Exception:
+        root_cause = {
+            "root_cause":
+                "Root cause analysis could not be completed.",
 
-        root_cause = (
-            "Root cause analysis could not be completed."
-        )
+            "confidence": 0.0,
 
-    # -------------------------------------------------
-    # Step 4: Duplicate Detection Agent
-    # -------------------------------------------------
+            "failure_point":
+                "Not Available",
 
-    try:
+            "reasoning":
+                "Root Cause Agent failed to analyze the bug.",
 
-        duplicate_result = detect_duplicates(bug)
+            "supporting_evidence": [],
 
-    except Exception as e:
-
-        duplicate_result = {
-            "duplicate_found": False,
-            "similar_bugs": []
+            "evidence_available": False
         }
 
-    # -------------------------------------------------
-    # Step 5: Fix Recommendation Agent
-    # -------------------------------------------------
+    # ---------------------------------------------------------
+    # 5. REMEDIATION AGENT
+    # ---------------------------------------------------------
 
     try:
 
+        # Extract root cause text
+        root_cause_text = root_cause.get(
+            "root_cause",
+            ""
+        )
+
         recommendation = recommend_fix(
-            bug,
-            root_cause
+            bug=bug,
+            root_cause=root_cause_text,
+            duplicate_detection=duplicate_result,
+            triage=triage_result,
+            log_findings=log_findings
         )
 
-    except Exception as e:
+    except Exception:
+        recommendation = {
+            "recommended_fix":
+                "Fix recommendation could not be generated.",
 
-        recommendation = (
-            "Fix recommendation could not be generated."
-        )
+            "implementation_guidance":
+                "Additional analysis is required.",
 
-    # -------------------------------------------------
-    # Combine All Agent Results
-    # -------------------------------------------------
+            "confidence": 0.0,
+
+            "evidence_type":
+                "Insufficient Evidence",
+
+            "historical_evidence": []
+        }
+
+    # ---------------------------------------------------------
+    # FINAL STRUCTURED RESULT
+    # ---------------------------------------------------------
 
     result = {
 
-        "Triage": triage_result,
+        "Triage":
+            triage_result,
 
-        "Log Findings": log_findings,
+        "Log Findings":
+            log_findings,
 
-        "Root Cause": root_cause,
+        "Root Cause":
+            root_cause,
 
-        "Duplicate Detection": duplicate_result,
+        "Duplicate Detection":
+            duplicate_result,
 
-        "Recommended Fix": recommendation
-
+        "Recommended Fix":
+            recommendation
     }
 
     return result
